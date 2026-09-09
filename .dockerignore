@@ -1,0 +1,15 @@
+.git
+.github
+.venv
+__pycache__
+*.py[cod]
+*.egg-info
+.coverage
+.DS_Store
+README.md
+docs
+images
+output
+sample_data
+scripts
+tests
