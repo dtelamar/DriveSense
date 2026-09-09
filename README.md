@@ -12,7 +12,8 @@ without connecting to a car. The project is structured so that a live ESP32,
 OBD-II, or CAN bus source can be added later without rebuilding the analysis
 side of the application.
 
-> **Status:** The CSV-based command-line MVP is complete and tested.
+> **Status:** The CSV-based command-line and REST API workflows are complete
+> and tested.
 
 ## Why I built it
 
@@ -35,6 +36,8 @@ and graphing modules can stay in place.
 - Calculates an explainable driver score and classification
 - Creates five plots that show how the vehicle behaved throughout the trip
 - Prints a clean command-line trip report
+- Accepts a telemetry CSV through a FastAPI endpoint and returns the score and
+  structured trip report as JSON
 
 ## How it works
 
@@ -135,6 +138,28 @@ The command prints the trip report in the terminal and writes the plots to
 python main.py sample_data/drive_log.csv --output-dir trip_report
 ```
 
+### REST API
+
+Start the FastAPI development server from the repository root:
+
+```bash
+python -m uvicorn api:app --reload
+```
+
+Open `http://127.0.0.1:8000/docs` to upload a telemetry CSV through the
+interactive API documentation, or send the bundled sample from another
+terminal:
+
+```bash
+curl -X POST http://127.0.0.1:8000/analyze-trip \
+  -F "telemetry_csv=@sample_data/drive_log.csv;type=text/csv"
+```
+
+`POST /analyze-trip` passes the uploaded file through the same validation,
+summary, event-detection, and scoring functions used by the command-line
+workflow. A successful request returns the driver score and a structured JSON
+report. Invalid telemetry returns HTTP 422 with the existing validation error.
+
 The bundled sample produces the following key results:
 
 | Result | Value |
@@ -163,6 +188,7 @@ scoring, plot generation, command-line output, and expected failure paths.
 ```text
 .
 |-- main.py             # Command-line workflow and report output
+|-- api.py              # FastAPI upload and JSON response interface
 |-- data_loader.py      # CSV loading and schema validation
 |-- analyzer.py         # Trip and engine summary statistics
 |-- metrics.py          # Driving-event detection and scoring
