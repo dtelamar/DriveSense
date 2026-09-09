@@ -12,8 +12,8 @@ without connecting to a car. The project is structured so that a live ESP32,
 OBD-II, or CAN bus source can be added later without rebuilding the analysis
 side of the application.
 
-> **Status:** The CSV-based command-line and REST API workflows are complete
-> and tested.
+> **Status:** The CSV-based command-line and containerized REST API workflows
+> are complete and tested.
 
 ## Why I built it
 
@@ -160,6 +160,25 @@ summary, event-detection, and scoring functions used by the command-line
 workflow. A successful request returns the driver score and a structured JSON
 report. Invalid telemetry returns HTTP 422 with the existing validation error.
 
+### Docker
+
+Build the FastAPI image from the repository root:
+
+```bash
+docker build --tag drivesense-api .
+```
+
+Start the container:
+
+```bash
+docker run --rm --publish 8000:8000 drivesense-api
+```
+
+The API is then available at `http://127.0.0.1:8000`. Open `/docs` in a browser
+or run the sample `curl` request from another terminal. The image runs the API
+as a non-root user and contains only the modules and dependencies required by
+the REST service.
+
 The bundled sample produces the following key results:
 
 | Result | Value |
@@ -181,12 +200,16 @@ python -m unittest discover
 ```
 
 The tests cover CSV validation, summary calculations, event grouping, driver
-scoring, plot generation, command-line output, and expected failure paths.
+scoring, plot generation, command-line output, the REST API, and expected
+failure paths. GitHub Actions also builds the Docker image, starts a container,
+uploads the bundled sample through the API, and verifies the returned score and
+event counts.
 
 ## Project structure
 
 ```text
 .
+|-- Dockerfile          # Container image for the FastAPI service
 |-- main.py             # Command-line workflow and report output
 |-- api.py              # FastAPI upload and JSON response interface
 |-- data_loader.py      # CSV loading and schema validation
@@ -198,7 +221,8 @@ scoring, plot generation, command-line output, and expected failure paths.
 |-- sample_data/        # Synthetic telemetry log
 |-- images/             # Generated plots and README screenshots
 |-- docs/               # Design notes and project documentation
-|-- requirements.txt    # Runtime dependencies
+|-- requirements-api.txt # FastAPI container dependencies
+|-- requirements.txt    # Complete CLI, API, and test dependencies
 `-- README.md
 ```
 

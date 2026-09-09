@@ -31,3 +31,59 @@ jobs:
         env:
           MPLCONFIGDIR: /tmp/drivesense-matplotlib
         run: python -m unittest discover
+
+  container:
+    name: Container smoke test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Build API image
+        run: docker build --tag drivesense-api:test .
+
+      - name: Start API container
+        run: >-
+          docker run --detach --name drivesense-api-test
+          --publish 8000:8000 drivesense-api:test
+
+      - name: Analyze the sample trip through the container
+        run: |
+          api_ready=0
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8000/openapi.json > /dev/null; then
+              api_ready=1
+              break
+            fi
+            sleep 1
+          done
+
+          if [ "$api_ready" -ne 1 ]; then
+            docker logs drivesense-api-test
+            exit 1
+          fi
+
+          curl --fail-with-body --silent --show-error \
+            -X POST http://127.0.0.1:8000/analyze-trip \
+            -F "telemetry_csv=@sample_data/drive_log.csv;type=text/csv" \
+            > /tmp/drivesense-container-response.json
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          response = json.loads(
+              Path("/tmp/drivesense-container-response.json").read_text()
+          )
+          assert response["driver_score"] == 67
+          behavior = response["report"]["driving_behavior"]
+          assert behavior["aggressive_acceleration_events"] == 1
+          assert behavior["hard_braking_events"] == 2
+          assert behavior["high_coolant_temperature_events"] == 1
+          assert behavior["classification"] == "Aggressive Driver"
+          PY
+
+      - name: Remove API container
+        if: always()
+        run: docker rm --force drivesense-api-test || true
